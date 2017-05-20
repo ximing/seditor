@@ -6,6 +6,9 @@
 import { Editor, Raw } from 'slate'
 import React from 'react'
 import Header from './header'
+
+import editor from './model/editor';
+
 /**
  * Define the default node type.
  */
@@ -56,8 +59,8 @@ export default class SEditor extends React.Component {
 
     constructor(props){
         super(props);
+        editor.state =  Raw.deserialize(props.initialState||{}, { terse: true });
         this.state = {
-            state: Raw.deserialize(props.initialState||{}, { terse: true }),
             left: window.innerWidth / 2 - 400,
             scrollTop: 0
         };
@@ -69,29 +72,6 @@ export default class SEditor extends React.Component {
         });
     }
 
-    /**
-     * Check if the current selection has a mark with `type` in it.
-     *
-     * @param {String} type
-     * @return {Boolean}
-     */
-
-    hasMark = (type) => {
-        const { state } = this.state
-        return state.marks.some(mark => mark.type == type)
-    }
-
-    /**
-     * Check if the any of the currently selected blocks are of `type`.
-     *
-     * @param {String} type
-     * @return {Boolean}
-     */
-
-    hasBlock = (type) => {
-        const { state } = this.state
-        return state.blocks.some(node => node.type == type)
-    }
 
     /**
      * On change, save the new state.
@@ -101,7 +81,7 @@ export default class SEditor extends React.Component {
 
     onChange = (state) => {
         console.log(Raw.serialize(state));
-        this.setState({ state })
+        editor.state = state;
     }
 
     /**
@@ -143,144 +123,7 @@ export default class SEditor extends React.Component {
         return state
     }
 
-    /**
-     * When a mark button is clicked, toggle the current mark.
-     *
-     * @param {Event} e
-     * @param {String} type
-     */
 
-    onClickMark = (e, type) => {
-        e.preventDefault()
-        let { state } = this.state
-
-        state = state
-            .transform()
-            .toggleMark(type)
-            .apply()
-
-        this.setState({ state })
-    }
-
-    /**
-     * When a block button is clicked, toggle the block type.
-     *
-     * @param {Event} e
-     * @param {String} type
-     */
-
-    onClickBlock = (e, type) => {
-        e.preventDefault()
-        let { state } = this.state
-        const transform = state.transform()
-        const { document } = state
-
-        // Handle everything but list buttons.
-        if (type != 'bulleted-list' && type != 'numbered-list') {
-            const isActive = this.hasBlock(type)
-            const isList = this.hasBlock('list-item')
-
-            if (isList) {
-                transform
-                    .setBlock(isActive ? DEFAULT_NODE : type)
-                    .unwrapBlock('bulleted-list')
-                    .unwrapBlock('numbered-list')
-            }
-
-            else {
-                transform
-                    .setBlock(isActive ? DEFAULT_NODE : type)
-            }
-        }
-
-        // Handle the extra wrapping required for list buttons.
-        else {
-            const isList = this.hasBlock('list-item')
-            const isType = state.blocks.some((block) => {
-                return !!document.getClosest(block.key, parent => parent.type == type)
-            })
-
-            if (isList && isType) {
-                transform
-                    .setBlock(DEFAULT_NODE)
-                    .unwrapBlock('bulleted-list')
-                    .unwrapBlock('numbered-list')
-            } else if (isList) {
-                transform
-                    .unwrapBlock(type == 'bulleted-list' ? 'numbered-list' : 'bulleted-list')
-                    .wrapBlock(type)
-            } else {
-                transform
-                    .setBlock('list-item')
-                    .wrapBlock(type)
-            }
-        }
-
-        state = transform.apply()
-        this.setState({ state })
-    }
-
-
-
-    /**
-     * Render the toolbar.
-     *
-     * @return {Element}
-     */
-
-    renderToolbar = () => {
-        return (
-            <div className="menu toolbar-menu">
-                {this.renderMarkButton('bold', 'format_bold')}
-                {this.renderMarkButton('italic', 'format_italic')}
-                {this.renderMarkButton('underlined', 'format_underlined')}
-                {this.renderMarkButton('code', 'code')}
-                {this.renderBlockButton('heading-one', 'looks_one')}
-                {this.renderBlockButton('heading-two', 'looks_two')}
-                {this.renderBlockButton('block-quote', 'format_quote')}
-                {this.renderBlockButton('numbered-list', 'format_list_numbered')}
-                {this.renderBlockButton('bulleted-list', 'format_list_bulleted')}
-            </div>
-        )
-    }
-
-    /**
-     * Render a mark-toggling toolbar button.
-     *
-     * @param {String} type
-     * @param {String} icon
-     * @return {Element}
-     */
-
-    renderMarkButton = (type, icon) => {
-        const isActive = this.hasMark(type)
-        const onMouseDown = e => this.onClickMark(e, type)
-
-        return (
-            <span className="button" onMouseDown={onMouseDown} data-active={isActive}>
-        <span className="material-icons">{icon}</span>
-      </span>
-        )
-    }
-
-    /**
-     * Render a block-toggling toolbar button.
-     *
-     * @param {String} type
-     * @param {String} icon
-     * @return {Element}
-     */
-
-    renderBlockButton = (type, icon) => {
-        const isActive = this.hasBlock(type)
-        const onMouseDown = e => this.onClickBlock(e, type)
-
-        return (
-            <span className="button" onMouseDown={onMouseDown} data-active={isActive}>
-        <span className="material-icons">{icon}</span>
-      </span>
-        )
-    }
 
     /**
      * Render the Slate editor.
@@ -297,7 +140,7 @@ export default class SEditor extends React.Component {
                 spellCheck
                 placeholder={'Enter some rich text...'}
                 schema={schema}
-                state={this.state.state}
+                state={editor.state}
                 onChange={this.onChange}
                 onKeyDown={this.onKeyDown}
             />
